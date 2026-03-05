@@ -1,0 +1,3 @@
+[submodule "external/cppLoggingInterface"]
+	path = external/cppLoggingInterface
+	url = https://github.com/Encoded404/cppLoggingInterface
