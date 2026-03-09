@@ -58,7 +58,7 @@ cmake --preset default -S . -B build
 ```
 
 Options:
-- `-DBUILD_TESTING=OFF` to skip tests (default: ON via preset)
+- `-DFILELOADER_BUILD_TESTING=OFF` to skip tests (default: ON via preset or OFF if its a subproject)
 - `-DENABLE_LOGGING=OFF` to compile out logging macros (default: ON)
 - `-DCLANG_TIDY_ENABLED=OFF` to skip clang-tidy configuration
 

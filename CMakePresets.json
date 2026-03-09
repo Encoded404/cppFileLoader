@@ -9,7 +9,7 @@
       "generator": "Ninja Multi-Config",
       "cacheVariables": {
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "BUILD_TESTING": "ON"
+        "FILELOADER_BUILD_TESTING": "ON"
       }
     },
     {

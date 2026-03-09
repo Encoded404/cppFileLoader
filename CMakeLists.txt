@@ -1,13 +1,19 @@
 cmake_minimum_required(VERSION 3.15)
 
-set(PROJECT_NAME "ModernCMakeLibraryTemplate")
-set(LIBRARY_TARGET "modern_cmake_library")
+set(PROJECT_NAME "cppFileLoader")
+set(PROJECT_UPPERCASE_NAME "CPPFILELOADER")
+set(LIBRARY_TARGET "FileLoader")
+set(LIBRARY_ALIAS "${PROJECT_NAME}::${LIBRARY_TARGET}")
+
+option(${PROJECT_UPPERCASE_NAME}_BUILD_TESTING "Build tests for the file loader" ${PROJECT_IS_TOP_LEVEL})
+
+if(${PROJECT_UPPERCASE_NAME}_BUILD_TESTING)
+    list(APPEND VCPKG_MANIFEST_FEATURES tests)
+endif()
 
 project(${PROJECT_NAME} VERSION 1.0.0 LANGUAGES CXX)
 
 include(CTest)
-include(GNUInstallDirs)
-include(CMakePackageConfigHelpers)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -29,9 +35,6 @@ else()
 	message(FATAL_ERROR "Missing logging interface at ${LOGGING_INTERFACE_DIR}; provide the repo there or set LOGIFACE_PATH to another directory.")
 endif()
 
-set(mclt_export_name ModernCMakeLibraryTemplateTargets)
-set(mclt_config_install_dir "${CMAKE_INSTALL_LIBDIR}/cmake/ModernCMakeLibraryTemplate")
-
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # disable Clang-Tidy if not using Clang or GCC
@@ -44,31 +47,6 @@ endif()
 
 add_subdirectory(src)
 
-if(BUILD_TESTING)
+if(${PROJECT_UPPERCASE_NAME}_BUILD_TESTING)
 	add_subdirectory(tests)
 endif()
-
-configure_package_config_file(
-	cmake/ModernCMakeLibraryTemplateConfig.cmake.in
-	"${CMAKE_CURRENT_BINARY_DIR}/ModernCMakeLibraryTemplateConfig.cmake"
-	INSTALL_DESTINATION "${mclt_config_install_dir}"
-)
-
-write_basic_package_version_file(
-	"${CMAKE_CURRENT_BINARY_DIR}/ModernCMakeLibraryTemplateConfigVersion.cmake"
-	VERSION ${PROJECT_VERSION}
-	COMPATIBILITY SameMajorVersion
-)
-
-install(
-	FILES
-		"${CMAKE_CURRENT_BINARY_DIR}/ModernCMakeLibraryTemplateConfig.cmake"
-		"${CMAKE_CURRENT_BINARY_DIR}/ModernCMakeLibraryTemplateConfigVersion.cmake"
-	DESTINATION "${mclt_config_install_dir}"
-)
-
-install(
-	EXPORT ${mclt_export_name}
-	NAMESPACE ModernCMakeLibrary::
-	DESTINATION "${mclt_config_install_dir}"
-)

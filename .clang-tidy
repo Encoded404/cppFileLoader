@@ -3,7 +3,6 @@
 
 # you can customize the checks and options as needed.
 # to use this file, place it in the root directory of your project. and rename it to .clang-tidy. (remove the -example suffix)
----
 Checks: >-
   modernize-*,
   performance-*,
@@ -70,5 +69,3 @@ CheckOptions:
     value:  CamelCase
   - key:    readability-identifier-naming.MacroDefinitionCase
     value:  aNy_CasE
-
----
