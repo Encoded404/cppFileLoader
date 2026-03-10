@@ -1,3 +1,5 @@
+set(TEST_TARGET_NAME "file_formats_tests")
+
 # Find Python for test file generation
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 
@@ -39,50 +41,15 @@ add_custom_target(
 )
 
 # ============================================================================
-# Original example tests
-# ============================================================================
-# Add the test executable
-add_executable(example_tests file_formats_tests.cpp)
-
-# Find GTest installed via vcpkg and link it along with the main library
-target_link_libraries(example_tests PRIVATE
-    ${LIBRARY_TARGET}
-    GTest::gtest
-    GTest::gtest_main
-)
-
-# Set compiler options for the test executable
-target_compile_options(example_tests PRIVATE
-    $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror>
-    $<$<CXX_COMPILER_ID:Clang>:-Wall -Werror>
-    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-)
-
-# Multi-configuration generator options
-if(CMAKE_CONFIGURATION_TYPES)
-	target_compile_options(example_tests PRIVATE
-        "$<$<CONFIG:Debug>:-g>"
-        "$<$<CONFIG:Debug>:-O0>"
-        "$<$<CONFIG:Release>:-O3>"
-    )
-endif()
-
-# Let CTest discover individual GoogleTest tests in the binary
-gtest_discover_tests(example_tests
-    PROPERTIES
-        ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
-)
-
-# ============================================================================
 # File formats tests
 # ============================================================================
-add_executable(file_formats_tests file_formats_tests.cpp)
+add_executable(${TEST_TARGET_NAME} file_formats_tests.cpp)
 
 # Ensure test data is generated before compiling tests
-add_dependencies(file_formats_tests generate_test_data)
+add_dependencies(${TEST_TARGET_NAME} generate_test_data)
 
 # Link libraries
-target_link_libraries(file_formats_tests PRIVATE
+target_link_libraries(${TEST_TARGET_NAME} PRIVATE
     ${LIBRARY_TARGET}
     GTest::gtest
     GTest::gtest_main
@@ -90,13 +57,13 @@ target_link_libraries(file_formats_tests PRIVATE
 )
 
 # Add include directories
-target_include_directories(file_formats_tests PRIVATE
+target_include_directories(${TEST_TARGET_NAME} PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/../src"
     "${CMAKE_CURRENT_SOURCE_DIR}/../include"
 )
 
 # Set compiler options for the test executable
-target_compile_options(file_formats_tests PRIVATE
+target_compile_options(${TEST_TARGET_NAME} PRIVATE
     $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror>
     $<$<CXX_COMPILER_ID:Clang>:-Wall -Werror>
     $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
@@ -104,7 +71,7 @@ target_compile_options(file_formats_tests PRIVATE
 
 # Multi-configuration generator options
 if(CMAKE_CONFIGURATION_TYPES)
-	target_compile_options(file_formats_tests PRIVATE
+	target_compile_options(${TEST_TARGET_NAME} PRIVATE
         "$<$<CONFIG:Debug>:-g>"
         "$<$<CONFIG:Debug>:-O0>"
         "$<$<CONFIG:Release>:-O3>"
@@ -112,7 +79,7 @@ if(CMAKE_CONFIGURATION_TYPES)
 endif()
 
 # Let CTest discover individual GoogleTest tests in the binary
-gtest_discover_tests(file_formats_tests
+gtest_discover_tests(${TEST_TARGET_NAME}
     PROPERTIES
         ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
         ENVIRONMENT "CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}"
