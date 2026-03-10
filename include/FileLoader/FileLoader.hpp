@@ -46,7 +46,7 @@ struct IAssembler {
         return prom->get_future();
     }
 
-    virtual std::future<std::shared_ptr<T>> AssembleFromFuture(std::future<std::shared_ptr<ByteBuffer>> fut) {
+    std::future<std::shared_ptr<T>> AssembleFromFuture(std::future<std::shared_ptr<ByteBuffer>> fut) {
         auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
         std::thread([this, p = prom, f = std::move(fut)]() mutable {
             try {
@@ -169,10 +169,13 @@ public:
         state->read_rate_bytes_per_sec.store(info.initial_read_rate_bytes_per_sec);
         state->cancelled.store(false);
 
-        auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
-        state->result_future = prom->get_future().share();
+        auto buffer_prom = std::make_shared<std::promise<std::shared_ptr<ByteBuffer>>>();
+        auto buffer_fut = buffer_prom->get_future();
+        
+        auto assemble_fut = assembler->AssembleFromFuture(std::move(buffer_fut));
+        state->result_future = assemble_fut.share();
 
-        std::thread([info, state, prom, assembler]() {
+        std::thread([info, state, buffer_prom, assembler]() {
             try {
                 std::ifstream ifs(info.path, std::ios::binary);
                 if (!ifs) throw std::system_error(errno, std::generic_category(), "Failed to open file");
@@ -208,11 +211,9 @@ public:
                     chunk.reserve(chunk_size);
                 }
 
-                auto assemble_fut = assembler->AssembleFromFullBuffer(full_buf);
-                auto result = assemble_fut.get();
-                prom->set_value(result);
+                buffer_prom->set_value(full_buf);
             } catch (...) {
-                prom->set_exception(std::current_exception());
+                buffer_prom->set_exception(std::current_exception());
             }
         }).detach();
 
