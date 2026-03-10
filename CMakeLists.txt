@@ -22,7 +22,7 @@ option(ENABLE_LOGGING "Enable header-only logging interface" ON)
 
 set(LOGIFACE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/cppLoggingInterface" CACHE PATH "Optional path to the cppLoggingInterface repo")
 
-if(NOT TARGET logging::logging)
+if(NOT TARGET logiface::logiface)
 	if(EXISTS "${LOGIFACE_PATH}/CMakeLists.txt")
 		add_subdirectory("${LOGIFACE_PATH}" cppLoggingInterface)
 	else()
