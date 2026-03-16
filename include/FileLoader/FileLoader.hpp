@@ -1,7 +1,9 @@
-#ifndef VULKAN_ENGINE_FILE_LOADER_HPP
-#define VULKAN_ENGINE_FILE_LOADER_HPP
+#ifndef FILE_LOADER_FILE_LOADER_HPP
+#define FILE_LOADER_FILE_LOADER_HPP
 
 #include "IncrementalBuffer.hpp"
+#include "Types.hpp"
+
 #include <future>
 #include <memory>
 #include <thread>

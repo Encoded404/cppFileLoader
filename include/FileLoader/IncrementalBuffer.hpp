@@ -1,5 +1,7 @@
-#ifndef INCREMENTAL_BUFFER_HPP
-#define INCREMENTAL_BUFFER_HPP
+#ifndef FILE_LOADER_INCREMENTAL_BUFFER_HPP
+#define FILE_LOADER_INCREMENTAL_BUFFER_HPP
+
+#include "Types.hpp"
 
 #include <vector>
 #include <span>
@@ -12,11 +14,7 @@
 #include <chrono>
 
 namespace FileLoader
-{
-    using Byte = std::byte;
-    using ByteBuffer = std::vector<Byte>;
-    using ByteSpan = std::span<const Byte>;
-    
+{   
     class IncrementalBuffer : public std::enable_shared_from_this<IncrementalBuffer> {
     public:
         IncrementalBuffer();
