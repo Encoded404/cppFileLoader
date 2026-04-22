@@ -5,8 +5,16 @@ set(PROJECT_UPPERCASE_NAME "CPPFILELOADER")
 set(LIBRARY_TARGET "FileLoader")
 set(LIBRARY_ALIAS "${PROJECT_NAME}::${LIBRARY_TARGET}")
 
-option(${PROJECT_UPPERCASE_NAME}_BUILD_TESTING "Build tests for the file loader" ${PROJECT_IS_TOP_LEVEL})
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+	set(IS_TOP_LEVEL ON)
+else()
+	set(IS_TOP_LEVEL OFF)
+endif()
 
+# this needs to use a custom top level variable instead of PROJECT_IS_TOP_LEVEL since that variable is only set after the project() call, but we need to know whether to append the "tests" feature to the vcpkg manifest before that.
+option(${PROJECT_UPPERCASE_NAME}_BUILD_TESTING "Build tests for the file loader" ${IS_TOP_LEVEL})
+
+# this needs to be before the project() call since vcpkg manifest is parsed at the project() call.
 if(${PROJECT_UPPERCASE_NAME}_BUILD_TESTING)
     list(APPEND VCPKG_MANIFEST_FEATURES tests)
 endif()
