@@ -90,7 +90,7 @@ public:
     }
 
 private:
-    template<typename, AssemblyMode> friend class FileManager;
+    friend class FileManager;
     struct State {
         std::atomic<std::uint64_t> read_rate_bytes_per_sec {0};
         std::atomic<bool> cancelled {false};
