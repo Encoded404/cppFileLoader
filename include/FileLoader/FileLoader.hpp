@@ -31,7 +31,7 @@ enum class AssemblyMode {
 };
 
 template<typename T, AssemblyMode Mode = AssemblyMode::Stream>
-struct IAssembler {
+struct IAssembler : std::enable_shared_from_this<IAssembler<T, Mode>> {
     virtual ~IAssembler() = default;
 
     virtual std::future<std::shared_ptr<T>> AssembleFromStream(std::shared_ptr<IncrementalBuffer> stream) {
@@ -50,10 +50,11 @@ struct IAssembler {
 
     std::future<std::shared_ptr<T>> AssembleFromFuture(std::future<std::shared_ptr<ByteBuffer>> fut) {
         auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
-        std::thread([this, p = prom, f = std::move(fut)]() mutable {
+        auto self = this->shared_from_this();
+        std::thread([self, p = prom, f = std::move(fut)]() mutable {
             try {
                 auto buf = f.get();
-                auto nested = this->AssembleFromFullBuffer(buf);
+                auto nested = self->AssembleFromFullBuffer(buf);
                 p->set_value(nested.get());
             } catch (...) { p->set_exception(std::current_exception()); }
         }).detach();
