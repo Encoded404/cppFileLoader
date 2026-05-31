@@ -74,6 +74,7 @@ if(CMAKE_CONFIGURATION_TYPES)
 	target_compile_options(${TEST_TARGET_NAME} PRIVATE
         "$<$<CONFIG:Debug>:-g>"
         "$<$<CONFIG:Debug>:-O0>"
+        "$<$<CONFIG:RelWithDebInfo>:-g>"
         "$<$<CONFIG:RelWithDebInfo>:-O2>"
         "$<$<CONFIG:Release>:-O3>"
     )
