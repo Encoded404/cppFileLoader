@@ -38,9 +38,9 @@ public:
             return;
         }
 
-        logger_ = std::make_shared<::Logiface::ConsoleLogger>(::Logiface::Level::debug, *stream_, *stream_);
+        logger_.emplace(::Logiface::Level::debug, *stream_, *stream_);
         previous_logger_ = ::Logiface::GetLogger();
-        ::Logiface::SetLogger(logger_);
+        ::Logiface::SetLogger(&logger_.value());
     }
 
     void OnTestEnd(const ::testing::TestInfo&) override {
@@ -64,8 +64,8 @@ private:
     }
 
     std::unique_ptr<std::ofstream> stream_{};
-    std::shared_ptr<::Logiface::ConsoleLogger> logger_{};
-    std::shared_ptr<::Logiface::Logger> previous_logger_{};
+    std::optional<::Logiface::ConsoleLogger> logger_{};
+    ::Logiface::Logger* previous_logger_{};
     bool active_{false};
 };
 
