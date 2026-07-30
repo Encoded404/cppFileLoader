@@ -16,6 +16,7 @@ module;
 #include <algorithm>
 #include <iterator>
 #include <utility>
+#include <thread>
 #endif
 
 export module FileLoader.DefaultFileReadStrategy;
@@ -71,16 +72,13 @@ private:
 
 // --- Implementations ---
 
-namespace
-{
-    constexpr std::size_t kChunkSize = static_cast<std::size_t>(64) * 1024;
+constexpr std::size_t kChunkSize = static_cast<std::size_t>(64) * 1024;
 
-    bool IsCancelled(const IORequest& req)
-    {
-        return req.cancel.cancelled &&
-               req.cancel.cancelled->load(std::memory_order_acquire);
-    }
-} // namespace
+bool IsCancelled(const IORequest& req)
+{
+    return req.cancel.cancelled &&
+           req.cancel.cancelled->load(std::memory_order_acquire);
+}
 
 DefaultFileReadStrategy::DefaultFileReadStrategy()
     : config_{}
