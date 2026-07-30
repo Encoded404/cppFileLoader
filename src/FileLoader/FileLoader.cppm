@@ -1,19 +1,16 @@
 module;
 
 #ifdef CPPFILELOADER_USE_STD_MODULE
-// errno is a C macro not brought in by import std;
-#include <errno.h>
 #else
 #include <future>
 #include <memory>
 #include <thread>
-#include <fstream>
 #include <filesystem>
 #include <atomic>
 #include <chrono>
-#include <system_error>
-#include <cerrno>
+#include <functional>
 #include <cstdint>
+#include <cstddef>
 #endif
 
 export module FileLoader;
@@ -24,6 +21,10 @@ import std;
 
 export import FileLoader.Types;
 export import FileLoader.IncrementalBuffer;
+export import FileLoader.IFileReadStrategy;
+
+import FileLoader.DefaultFileReadStrategy;
+import FileLoader.DynamicThreadPool;
 
 export namespace FileLoader
 {
@@ -59,19 +60,6 @@ struct IAssembler : std::enable_shared_from_this<IAssembler<T, Mode>> {
         (void)buffer;
         return prom->get_future();
     }
-
-    std::future<std::shared_ptr<T>> AssembleFromFuture(std::future<std::shared_ptr<ByteBuffer>> fut) {
-        auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
-        auto self = this->shared_from_this();
-        std::thread([self, p = prom, f = std::move(fut)]() mutable {
-            try {
-                auto buf = f.get();
-                auto nested = self->AssembleFromFullBuffer(buf);
-                p->set_value(nested.get());
-            } catch (...) { p->set_exception(std::current_exception()); }
-        }).detach();
-        return prom->get_future();
-    }
 };
 
 template<typename T>
@@ -81,21 +69,21 @@ public:
 
     void SetReadRateLimit(std::uint64_t bytes_per_sec) {
         if (!state_) return;
-        state_->read_rate_bytes_per_sec.store(bytes_per_sec, std::memory_order_relaxed);
+        state_->read_rate_bytes_per_sec->store(bytes_per_sec, std::memory_order_relaxed);
     }
 
     [[nodiscard]] std::uint64_t GetReadRateLimit() const {
-        return state_ ? state_->read_rate_bytes_per_sec.load() : 0;
+        return state_ ? state_->read_rate_bytes_per_sec->load() : 0;
     }
 
     void Cancel() {
         if (!state_) return;
-        state_->cancelled.store(true, std::memory_order_release);
+        state_->cancelled->store(true, std::memory_order_release);
         if (state_->stream) state_->stream->Cancel();
     }
 
     [[nodiscard]] bool IsCancelled() const {
-        return state_ && state_->cancelled.load(std::memory_order_acquire);
+        return state_ && state_->cancelled->load(std::memory_order_acquire);
     }
 
     std::shared_future<std::shared_ptr<T>> GetFuture() const {
@@ -105,8 +93,10 @@ public:
 private:
     friend class FileManager;
     struct State {
-        std::atomic<std::uint64_t> read_rate_bytes_per_sec {0};
-        std::atomic<bool> cancelled {false};
+        std::shared_ptr<std::atomic<std::uint64_t>> read_rate_bytes_per_sec
+            = std::make_shared<std::atomic<std::uint64_t>>(0);
+        std::shared_ptr<std::atomic<bool>> cancelled
+            = std::make_shared<std::atomic<bool>>(false);
         std::shared_ptr<IncrementalBuffer> stream;
         std::shared_future<std::shared_ptr<T>> result_future;
     };
@@ -116,124 +106,111 @@ private:
 
 class FileManager {
 public:
-    FileManager() = default;
+    using CpuWork = std::function<void()>;
+    using CpuScheduler = std::function<void(CpuWork)>;
 
-    // Stream assembly version
+    FileManager()
+        : strategy_(std::make_shared<DefaultFileReadStrategy>())
+        , cpu_pool_(std::make_shared<DynamicThreadPool>([]() {
+            DynamicThreadPool::Config cfg;
+            const auto hw = std::thread::hardware_concurrency();
+            cfg.max_threads = (hw > 1) ? static_cast<std::size_t>(hw) - 1 : 1;
+            cfg.min_threads = 1;
+            cfg.idle_timeout = std::chrono::seconds(30);
+            return cfg;
+        }()))
+        , cpu_scheduler_([pool = cpu_pool_](CpuWork work) { pool->Post(std::move(work)); })
+    {}
+
+    explicit FileManager(std::shared_ptr<IFileReadStrategy> strategy,
+                         CpuScheduler cpu_scheduler)
+        : strategy_(std::move(strategy))
+        , cpu_scheduler_(std::move(cpu_scheduler))
+    {}
+
+    explicit FileManager(std::shared_ptr<IFileReadStrategy> strategy)
+        : strategy_(std::move(strategy))
+        , cpu_pool_(std::make_shared<DynamicThreadPool>([]() {
+            DynamicThreadPool::Config cfg;
+            const auto hw = std::thread::hardware_concurrency();
+            cfg.max_threads = (hw > 1) ? static_cast<std::size_t>(hw) - 1 : 1;
+            cfg.min_threads = 1;
+            cfg.idle_timeout = std::chrono::seconds(30);
+            return cfg;
+        }()))
+        , cpu_scheduler_([pool = cpu_pool_](CpuWork work) { pool->Post(std::move(work)); })
+    {}
+
     template<typename T>
     LoadHandle<T> LoadFile(const FileLoadInfo& info, std::shared_ptr<IAssembler<T, AssemblyMode::Stream>> assembler) {
         using State = typename LoadHandle<T>::State;
         auto state = std::make_shared<State>();
-        state->read_rate_bytes_per_sec.store(info.initial_read_rate_bytes_per_sec);
-        state->cancelled.store(false);
+        state->read_rate_bytes_per_sec->store(info.initial_read_rate_bytes_per_sec);
         state->stream = std::make_shared<IncrementalBuffer>();
 
         auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
         state->result_future = prom->get_future().share();
 
-        std::thread([info, state, prom, assembler]() {
+        auto assemble_fut = assembler->AssembleFromStream(state->stream);
+        auto read_fut = strategy_->ReadStreaming(info.path,
+                                                  CancellationToken{state->cancelled},
+                                                  state->stream,
+                                                  ReadRateControl{state->read_rate_bytes_per_sec});
+
+        strategy_->Post([prom, stream = state->stream,
+                         read_fut = std::move(read_fut),
+                         assemble_fut = std::move(assemble_fut)]() mutable {
             try {
-                std::ifstream ifs(info.path, std::ios::binary);
-                if (!ifs) throw std::system_error(errno, std::generic_category(), "Failed to open file");
-
-                constexpr std::size_t chunk_size = static_cast<std::size_t>(64) * 1024;
-                ByteBuffer chunk;
-                chunk.reserve(chunk_size);
-
-                auto assemble_fut = assembler->AssembleFromStream(state->stream);
-
-                while (!state->cancelled.load(std::memory_order_acquire)) {
-                    chunk.clear();
-                    chunk.resize(chunk_size);
-                    ifs.read(reinterpret_cast<char*>(chunk.data()), static_cast<std::streamsize>(chunk_size));
-                    const std::streamsize read = ifs.gcount();
-
-                    if (read <= 0) break;
-                    chunk.resize(read);
-
-                    if (!state->stream->push(std::move(chunk))) break;
-
-                    // Recreate chunk after it was moved-from
-                    chunk = ByteBuffer();
-                    chunk.reserve(chunk_size);
-
-                    const auto rate = state->read_rate_bytes_per_sec.load(std::memory_order_relaxed);
-                    if (rate > 0) {
-                        std::this_thread::sleep_for(
-                            std::chrono::duration<double>(static_cast<double>(read) / static_cast<double>(rate))
-                        );
-                    }
-                }
-
-                state->stream->close();
+                read_fut.get();
+                stream->Close();
                 auto result = assemble_fut.get();
                 prom->set_value(result);
             } catch (...) {
-                state->stream->Cancel();
-                prom->set_exception(std::current_exception());
+                auto eptr = std::current_exception();
+                stream->Cancel();
+                prom->set_exception(eptr);
             }
-        }).detach();
+        });
 
         return LoadHandle<T>(state);
     }
 
-    // Full buffer assembly version
     template<typename T>
     LoadHandle<T> LoadFile(const FileLoadInfo& info, std::shared_ptr<IAssembler<T, AssemblyMode::FullBuffer>> assembler) {
         using State = typename LoadHandle<T>::State;
         auto state = std::make_shared<State>();
-        state->read_rate_bytes_per_sec.store(info.initial_read_rate_bytes_per_sec);
-        state->cancelled.store(false);
+        state->read_rate_bytes_per_sec->store(info.initial_read_rate_bytes_per_sec);
 
-        auto buffer_prom = std::make_shared<std::promise<std::shared_ptr<ByteBuffer>>>();
-        auto buffer_fut = buffer_prom->get_future();
+        auto buffer_fut = strategy_->ReadFull(info.path, info.size_hint_bytes,
+                                               CancellationToken{state->cancelled},
+                                               ReadRateControl{state->read_rate_bytes_per_sec});
+        auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
+        state->result_future = prom->get_future().share();
 
-        auto assemble_fut = assembler->AssembleFromFuture(std::move(buffer_fut));
-        state->result_future = assemble_fut.share();
-
-        std::thread([info, state, buffer_prom, assembler]() {
+        strategy_->Post([buffer_fut = std::move(buffer_fut),
+                         assembler = std::move(assembler), prom,
+                         cpu = cpu_scheduler_]() mutable {
             try {
-                std::ifstream ifs(info.path, std::ios::binary);
-                if (!ifs) throw std::system_error(errno, std::generic_category(), "Failed to open file");
-
-                constexpr std::size_t chunk_size = static_cast<std::size_t>(64) * 1024;
-                auto full_buf = std::make_shared<ByteBuffer>();
-                full_buf->reserve(static_cast<std::size_t>(info.size_hint_bytes ? info.size_hint_bytes : chunk_size * 4));
-
-                ByteBuffer chunk;
-                chunk.reserve(chunk_size);
-
-                while (!state->cancelled.load(std::memory_order_acquire)) {
-                    chunk.clear();
-                    chunk.resize(chunk_size);
-                    ifs.read(reinterpret_cast<char*>(chunk.data()), static_cast<std::streamsize>(chunk_size));
-                    const std::streamsize read = ifs.gcount();
-
-                    if (read <= 0) break;
-                    chunk.resize(read);
-
-                    full_buf->insert(full_buf->end(), chunk.begin(), chunk.end());
-
-                    const std::uint64_t rate = state->read_rate_bytes_per_sec.load(std::memory_order_relaxed);
-
-                    if (rate > 0) {
-                        std::this_thread::sleep_for(
-                            std::chrono::duration<double>(static_cast<double>(read) / static_cast<double>(rate))
-                        );
+                auto buf = buffer_fut.get();
+                cpu([buf = std::move(buf), assembler = std::move(assembler), prom]() {
+                    try {
+                        prom->set_value(assembler->AssembleFromFullBuffer(buf).get());
+                    } catch (...) {
+                        prom->set_exception(std::current_exception());
                     }
-
-                    // Recreate chunk after potential moves
-                    chunk = ByteBuffer();
-                    chunk.reserve(chunk_size);
-                }
-
-                buffer_prom->set_value(full_buf);
+                });
             } catch (...) {
-                buffer_prom->set_exception(std::current_exception());
+                prom->set_exception(std::current_exception());
             }
-        }).detach();
+        });
 
         return LoadHandle<T>(state);
     }
+
+private:
+    std::shared_ptr<IFileReadStrategy> strategy_;
+    std::shared_ptr<DynamicThreadPool> cpu_pool_;
+    CpuScheduler cpu_scheduler_;
 };
 
 } // namespace FileLoader

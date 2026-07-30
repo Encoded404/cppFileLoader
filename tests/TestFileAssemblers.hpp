@@ -16,7 +16,7 @@ namespace FileLoader::TestFormatAssemblers {
 class KeyValueAssembler : public IAssembler<TestFormats::KeyValueData, AssemblyMode::FullBuffer> {
 public:
     std::future<std::shared_ptr<TestFormats::KeyValueData>> AssembleFromFullBuffer(
-        std::shared_ptr<ByteBuffer> buffer) override 
+        const std::shared_ptr<ByteBuffer>& buffer) override 
     {
         auto prom = std::make_shared<std::promise<std::shared_ptr<TestFormats::KeyValueData>>>();
         
@@ -72,7 +72,7 @@ public:
 class BinaryFixedAssembler : public IAssembler<TestFormats::BinaryFixedData, AssemblyMode::FullBuffer> {
 public:
     std::future<std::shared_ptr<TestFormats::BinaryFixedData>> AssembleFromFullBuffer(
-        std::shared_ptr<ByteBuffer> buffer) override 
+        const std::shared_ptr<ByteBuffer>& buffer) override 
     {
         auto prom = std::make_shared<std::promise<std::shared_ptr<TestFormats::BinaryFixedData>>>();
         
@@ -123,7 +123,7 @@ public:
 class BinaryTLVAssembler : public IAssembler<TestFormats::BinaryTLVData, AssemblyMode::FullBuffer> {
 public:
     std::future<std::shared_ptr<TestFormats::BinaryTLVData>> AssembleFromFullBuffer(
-        std::shared_ptr<ByteBuffer> buffer) override 
+        const std::shared_ptr<ByteBuffer>& buffer) override 
     {
         auto prom = std::make_shared<std::promise<std::shared_ptr<TestFormats::BinaryTLVData>>>();
         

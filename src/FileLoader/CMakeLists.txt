@@ -54,7 +54,11 @@ if(${PROJECT_UPPERCASE_NAME}_BUILD_AS_MODULE)
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
         FILES
             ${CMAKE_CURRENT_SOURCE_DIR}/Types.cppm
+            ${CMAKE_CURRENT_SOURCE_DIR}/IFileReadStrategy.cppm
             ${CMAKE_CURRENT_SOURCE_DIR}/IncrementalBuffer.cppm
+            ${CMAKE_CURRENT_SOURCE_DIR}/IOQueue.cppm
+            ${CMAKE_CURRENT_SOURCE_DIR}/DynamicThreadPool.cppm
+            ${CMAKE_CURRENT_SOURCE_DIR}/DefaultFileReadStrategy.cppm
             ${CMAKE_CURRENT_SOURCE_DIR}/FileLoader.cppm
     )
 
@@ -65,6 +69,9 @@ else()
 
     target_sources(${LIBRARY_TARGET} PRIVATE
         IncrementalBuffer.cpp
+        IOQueue.cpp
+        DynamicThreadPool.cpp
+        DefaultFileReadStrategy.cpp
     )
 
 endif()

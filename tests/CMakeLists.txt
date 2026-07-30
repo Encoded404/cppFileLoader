@@ -86,3 +86,114 @@ gtest_discover_tests(${TEST_TARGET_NAME}
         ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
         ENVIRONMENT "CMAKE_BINARY_DIR=${CMAKE_BINARY_DIR}"
 )
+
+# ============================================================================
+# Thread pool tests
+# ============================================================================
+add_executable(thread_pool_tests thread_pool_tests.cpp)
+
+target_link_libraries(thread_pool_tests PRIVATE
+    ${LIBRARY_TARGET}
+    GTest::gtest
+    GTest::gtest_main
+)
+
+target_include_directories(thread_pool_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+)
+
+target_compile_options(thread_pool_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:Clang>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+)
+
+if(CMAKE_CONFIGURATION_TYPES)
+    target_compile_options(thread_pool_tests PRIVATE
+        "$<$<CONFIG:Debug>:-g>"
+        "$<$<CONFIG:Debug>:-O0>"
+        "$<$<CONFIG:RelWithDebInfo>:-g>"
+        "$<$<CONFIG:RelWithDebInfo>:-O2>"
+        "$<$<CONFIG:Release>:-O3>"
+    )
+endif()
+
+gtest_discover_tests(thread_pool_tests
+    PROPERTIES
+        ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
+)
+
+# ============================================================================
+# Strategy tests
+# ============================================================================
+add_executable(strategy_tests strategy_tests.cpp)
+
+target_link_libraries(strategy_tests PRIVATE
+    ${LIBRARY_TARGET}
+    GTest::gtest
+    GTest::gtest_main
+)
+
+target_include_directories(strategy_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+)
+
+target_compile_options(strategy_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:Clang>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+)
+
+if(CMAKE_CONFIGURATION_TYPES)
+    target_compile_options(strategy_tests PRIVATE
+        "$<$<CONFIG:Debug>:-g>"
+        "$<$<CONFIG:Debug>:-O0>"
+        "$<$<CONFIG:RelWithDebInfo>:-g>"
+        "$<$<CONFIG:RelWithDebInfo>:-O2>"
+        "$<$<CONFIG:Release>:-O3>"
+    )
+endif()
+
+gtest_discover_tests(strategy_tests
+    PROPERTIES
+        ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
+)
+
+# ============================================================================
+# IOQueue tests
+# ============================================================================
+add_executable(io_queue_tests io_queue_tests.cpp)
+
+target_link_libraries(io_queue_tests PRIVATE
+    ${LIBRARY_TARGET}
+    GTest::gtest
+    GTest::gtest_main
+)
+
+target_include_directories(io_queue_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+)
+
+target_compile_options(io_queue_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:Clang>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+)
+
+if(CMAKE_CONFIGURATION_TYPES)
+    target_compile_options(io_queue_tests PRIVATE
+        "$<$<CONFIG:Debug>:-g>"
+        "$<$<CONFIG:Debug>:-O0>"
+        "$<$<CONFIG:RelWithDebInfo>:-g>"
+        "$<$<CONFIG:RelWithDebInfo>:-O2>"
+        "$<$<CONFIG:Release>:-O3>"
+    )
+endif()
+
+gtest_discover_tests(io_queue_tests
+    PROPERTIES
+        ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
+)
