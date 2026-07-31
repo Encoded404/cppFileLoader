@@ -157,13 +157,14 @@ public:
                                                   state->stream,
                                                   ReadRateControl{state->read_rate_bytes_per_sec});
 
+        auto read_fut_ptr = std::make_shared<decltype(read_fut)>(std::move(read_fut));
+        auto assemble_fut_ptr = std::make_shared<decltype(assemble_fut)>(std::move(assemble_fut));
         strategy_->Post([prom, stream = state->stream,
-                         read_fut = std::move(read_fut),
-                         assemble_fut = std::move(assemble_fut)]() mutable {
+                         read_fut_ptr, assemble_fut_ptr]() mutable {
             try {
-                read_fut.get();
+                read_fut_ptr->get();
                 stream->Close();
-                auto result = assemble_fut.get();
+                auto result = assemble_fut_ptr->get();
                 prom->set_value(result);
             } catch (...) {
                 auto eptr = std::current_exception();
@@ -187,11 +188,11 @@ public:
         auto prom = std::make_shared<std::promise<std::shared_ptr<T>>>();
         state->result_future = prom->get_future().share();
 
-        strategy_->Post([buffer_fut = std::move(buffer_fut),
-                         assembler = std::move(assembler), prom,
+        auto buffer_fut_ptr = std::make_shared<decltype(buffer_fut)>(std::move(buffer_fut));
+        strategy_->Post([buffer_fut_ptr, assembler = std::move(assembler), prom,
                          cpu = cpu_scheduler_]() mutable {
             try {
-                auto buf = buffer_fut.get();
+                auto buf = buffer_fut_ptr->get();
                 cpu([buf = std::move(buf), assembler = std::move(assembler), prom]() {
                     try {
                         prom->set_value(assembler->AssembleFromFullBuffer(buf).get());
