@@ -39,6 +39,8 @@ option(ENABLE_LOGGING "Enable header-only logging interface" ON)
 # Module-related options (default OFF for backward compatibility).
 option(${PROJECT_UPPERCASE_NAME}_USE_STD_MODULE
     "Use import std; instead of #include in the module files" OFF)
+option(${PROJECT_UPPERCASE_NAME}_USE_LOGIFACE_MODULE
+    "Use import logiface; instead of #include <logging/logging.hpp> in the module files" OFF)
 option(${PROJECT_UPPERCASE_NAME}_BUILD_AS_MODULE
     "Build with C++20 module files that can be imported instead of #included" OFF)
 

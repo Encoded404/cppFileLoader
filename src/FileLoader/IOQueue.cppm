@@ -1,7 +1,8 @@
 module;
 
-#ifdef CPPFILELOADER_USE_STD_MODULE
 #include <logging/logging_macros.hpp>
+
+#ifdef CPPFILELOADER_USE_STD_MODULE
 #else
 #include <deque>
 #include <mutex>
@@ -18,6 +19,9 @@ module;
 #include <algorithm>
 #include <system_error>
 #include <stdexcept>
+#endif
+
+#ifndef CPPFILELOADER_USE_LOGIFACE_MODULE
 #include <logging/logging.hpp>
 #endif
 
@@ -25,6 +29,9 @@ export module FileLoader.IOQueue;
 
 #ifdef CPPFILELOADER_USE_STD_MODULE
 import std;
+#endif
+
+#ifdef CPPFILELOADER_USE_LOGIFACE_MODULE
 import logiface;
 #endif
 
