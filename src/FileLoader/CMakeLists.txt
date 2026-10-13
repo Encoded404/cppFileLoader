@@ -4,10 +4,15 @@ add_library(${LIBRARY_ALIAS} ALIAS ${LIBRARY_TARGET})
 
 target_link_libraries(${LIBRARY_TARGET} PUBLIC logiface)
 
+option(CPPFILELOADER_ASYNC_STRATEGIES
+    "Enable native async read strategies (io_uring on Linux, overlapped IOCP on Windows)." ON)
+
 target_compile_definitions(${LIBRARY_TARGET}
     PUBLIC
         $<$<BOOL:${ENABLE_LOGGING}>:LOGIFACE_ENABLE_LOGGING=1>
         $<$<NOT:$<BOOL:${ENABLE_LOGGING}>>:LOGIFACE_ENABLE_LOGGING=0>
+        $<$<BOOL:${CPPFILELOADER_ASYNC_STRATEGIES}>:CPPFILELOADER_ASYNC_STRATEGIES=1>
+        $<$<NOT:$<BOOL:${CPPFILELOADER_ASYNC_STRATEGIES}>>:CPPFILELOADER_ASYNC_STRATEGIES=0>
 )
 
 target_compile_options(${LIBRARY_TARGET} PRIVATE
@@ -63,6 +68,23 @@ if(${PROJECT_UPPERCASE_NAME}_BUILD_AS_MODULE)
             ${CMAKE_CURRENT_SOURCE_DIR}/FileLoader.cppm
     )
 
+    # Native async strategies are target-dependent (§ plans/file_loader_async_submission_design.md)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(${LIBRARY_TARGET} PUBLIC
+            FILE_SET CXX_MODULES
+            BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+            FILES
+                ${CMAKE_CURRENT_SOURCE_DIR}/IoUringFileReadStrategy.cppm
+        )
+    elseif(WIN32)
+        target_sources(${LIBRARY_TARGET} PUBLIC
+            FILE_SET CXX_MODULES
+            BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+            FILES
+                ${CMAKE_CURRENT_SOURCE_DIR}/OverlappedFileReadStrategy.cppm
+        )
+    endif()
+
 # Traditional header/source build path (default)
 else()
 
@@ -74,5 +96,15 @@ else()
         DynamicThreadPool.cpp
         DefaultFileReadStrategy.cpp
     )
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        target_sources(${LIBRARY_TARGET} PRIVATE
+            IoUringFileReadStrategy.cpp
+        )
+    elseif(WIN32)
+        target_sources(${LIBRARY_TARGET} PRIVATE
+            OverlappedFileReadStrategy.cpp
+        )
+    endif()
 
 endif()

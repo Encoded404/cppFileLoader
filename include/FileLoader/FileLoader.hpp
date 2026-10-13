@@ -6,6 +6,11 @@
 #include "IFileReadStrategy.hpp"
 #include "DefaultFileReadStrategy.hpp"
 #include "DynamicThreadPool.hpp"
+#if defined(__linux__)
+#include "IoUringFileReadStrategy.hpp"
+#elif defined(_WIN32)
+#include "OverlappedFileReadStrategy.hpp"
+#endif
 
 #include <future>
 #include <memory>
@@ -89,13 +94,30 @@ private:
     explicit LoadHandle(std::shared_ptr<State> s) : state_(std::move(s)) {}
 };
 
+/// Returns the best available read strategy for the current target:
+/// io_uring (Linux, probed), overlapped-IOCP (Windows), or the portable
+/// blocking DefaultFileReadStrategy as fallback. Gated by the
+/// CPPFILELOADER_ASYNC_STRATEGIES option (default ON).
+[[nodiscard]] inline std::shared_ptr<IFileReadStrategy> MakePlatformReadStrategy()
+{
+#if defined(CPPFILELOADER_ASYNC_STRATEGIES) && CPPFILELOADER_ASYNC_STRATEGIES
+    #if defined(__linux__)
+    if (IoUringFileReadStrategy::IsAvailable())
+        return std::make_shared<IoUringFileReadStrategy>();
+    #elif defined(_WIN32)
+    return std::make_shared<OverlappedFileReadStrategy>();
+    #endif
+#endif
+    return std::make_shared<DefaultFileReadStrategy>();
+}
+
 class FileManager {
 public:
     using CpuWork = std::function<void()>;
     using CpuScheduler = std::function<void(CpuWork)>;
 
     FileManager()
-        : strategy_(std::make_shared<DefaultFileReadStrategy>())
+        : strategy_(MakePlatformReadStrategy())
         , cpu_pool_(std::make_shared<DynamicThreadPool>([]() {
             DynamicThreadPool::Config cfg;
             const auto hw = std::thread::hardware_concurrency();

@@ -68,6 +68,38 @@ std::optional<IORequest> IOQueue::Pop()
     return std::nullopt;
 }
 
+std::optional<IORequest> IOQueue::TryPop()
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+
+    if (stopped_.load(std::memory_order_acquire))
+        return std::nullopt;
+    if (heap_.empty())
+        return std::nullopt;
+
+    const IORequest& front = heap_.front();
+
+    // Discard cancelled requests without ever touching the file
+    if (front.cancel.cancelled &&
+        front.cancel.cancelled->load(std::memory_order_acquire))
+    {
+        std::ranges::pop_heap(heap_, Compare{});
+        IORequest discarded = std::move(heap_.back());
+        heap_.pop_back();
+        DiscardCancelled(std::move(discarded));
+        return std::nullopt; // caller re-enters; another ready item may exist
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    if (front.ready_at > now)
+        return std::nullopt; // delayed → pretend the queue is empty
+
+    std::ranges::pop_heap(heap_, Compare{});
+    IORequest req = std::move(heap_.back());
+    heap_.pop_back();
+    return req;
+}
+
 void IOQueue::Stop()
 {
     stopped_.store(true, std::memory_order_release);

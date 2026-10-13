@@ -197,3 +197,40 @@ gtest_discover_tests(io_queue_tests
     PROPERTIES
         ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
 )
+
+# ============================================================================
+# Async strategy parity tests (io_uring / overlapped IOCP vs Default)
+# ============================================================================
+add_executable(async_strategy_tests async_strategy_tests.cpp)
+
+target_link_libraries(async_strategy_tests PRIVATE
+    ${LIBRARY_TARGET}
+    GTest::gtest
+    GTest::gtest_main
+)
+
+target_include_directories(async_strategy_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/../src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../include"
+)
+
+target_compile_options(async_strategy_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:Clang>:-Wall -Werror>
+    $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+)
+
+if(CMAKE_CONFIGURATION_TYPES)
+    target_compile_options(async_strategy_tests PRIVATE
+        "$<$<CONFIG:Debug>:-g>"
+        "$<$<CONFIG:Debug>:-O0>"
+        "$<$<CONFIG:RelWithDebInfo>:-g>"
+        "$<$<CONFIG:RelWithDebInfo>:-O2>"
+        "$<$<CONFIG:Release>:-O3>"
+    )
+endif()
+
+gtest_discover_tests(async_strategy_tests
+    PROPERTIES
+        ENVIRONMENT "TEST_LOG_DIR=${CMAKE_BINARY_DIR}/Testing/logs"
+)

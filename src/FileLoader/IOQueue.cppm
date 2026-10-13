@@ -66,6 +66,13 @@ struct IORequest
 
     // I/O state — stream stays open between rate-limited re-queues
     std::unique_ptr<std::ifstream> ifs;
+
+    // Strategy bookkeeping, owned by the IFileReadStrategy implementation that
+    // queued the request. DefaultFileReadStrategy ignores both fields; the
+    // native async strategies (io_uring / overlapped IOCP) use them to carry
+    // an open handle and read position across rate-limited re-queues.
+    std::intptr_t os_handle = -1;      // fd (Linux) / HANDLE (Windows); -1 = not opened
+    std::uint64_t next_offset = 0;     // offset of the next chunk to read
 };
 
 class IOQueue
@@ -83,6 +90,12 @@ public:
 
     // Returns std::nullopt if Stop() was called and queue is drained.
     std::optional<IORequest> Pop();
+
+    // Non-blocking variant: returns the highest-priority ready request, or
+    // std::nullopt when the queue is empty, the front item's ready_at is in
+    // the future, or Stop() was called. Used by workers that hold work in
+    // flight and must never stall the pipeline behind a delayed request.
+    std::optional<IORequest> TryPop();
 
     void Stop();
 
@@ -164,6 +177,38 @@ std::optional<IORequest> IOQueue::Pop()
     }
 
     return std::nullopt;
+}
+
+std::optional<IORequest> IOQueue::TryPop()
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+
+    if (stopped_.load(std::memory_order_acquire))
+        return std::nullopt;
+    if (heap_.empty())
+        return std::nullopt;
+
+    IORequest& front = heap_.front();
+
+    // Discard cancelled requests without ever touching the file
+    if (front.cancel.cancelled &&
+        front.cancel.cancelled->load(std::memory_order_acquire))
+    {
+        std::pop_heap(heap_.begin(), heap_.end(), Compare{});
+        IORequest discarded = std::move(heap_.back());
+        heap_.pop_back();
+        DiscardCancelled(std::move(discarded));
+        return std::nullopt; // caller re-enters; another ready item may exist
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    if (front.ready_at > now)
+        return std::nullopt; // delayed → pretend the queue is empty
+
+    std::pop_heap(heap_.begin(), heap_.end(), Compare{});
+    IORequest req = std::move(heap_.back());
+    heap_.pop_back();
+    return req;
 }
 
 void IOQueue::Stop()

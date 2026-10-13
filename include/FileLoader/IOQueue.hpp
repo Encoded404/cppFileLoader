@@ -45,6 +45,13 @@ struct IORequest
 
     // I/O state — stream stays open between rate-limited re-queues
     std::unique_ptr<std::ifstream> ifs;
+
+    // Strategy bookkeeping, owned by the IFileReadStrategy implementation that
+    // queued the request. DefaultFileReadStrategy ignores both fields; the
+    // native async strategies (io_uring / overlapped IOCP) use them to carry
+    // an open handle and read position across rate-limited re-queues.
+    std::intptr_t os_handle = -1;      // fd (Linux) / HANDLE (Windows); -1 = not opened
+    std::uint64_t next_offset = 0;     // offset of the next chunk to read
 };
 
 class IOQueue
@@ -62,6 +69,12 @@ public:
 
     // Returns std::nullopt if Stop() was called and queue is drained.
     std::optional<IORequest> Pop();
+
+    // Non-blocking variant: returns the highest-priority ready request, or
+    // std::nullopt when the queue is empty, the front item's ready_at is in
+    // the future, or Stop() was called. Used by workers that hold work in
+    // flight and must never stall the pipeline behind a delayed request.
+    std::optional<IORequest> TryPop();
 
     void Stop();
 
